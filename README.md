@@ -1,36 +1,48 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AccessAudit
 
-## Getting Started
+AI-powered wheelchair accessibility auditor using NVIDIA Nemotron vision models.
 
-First, run the development server:
+## How It Works
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+AccessAudit runs a 4-step autonomous agent loop for any address:
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+1. **Geocode** — Converts the address to coordinates via OpenStreetMap Nominatim
+2. **Capture** — Fetches 4 Google Street View images facing N, E, S, W
+3. **Analyze** — Sends each image to `nvidia/nemotron-nano-12b-v2-vl` for accessibility analysis (sidewalks, curb cuts, ramps, obstacles, surface quality)
+4. **Synthesize** — `nvidia/nemotron-3-super-120b-a12b` combines all findings into a scored report with an A–F grade and actionable recommendations
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Tech Stack
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **Framework** — Next.js 14 (App Router, TypeScript)
+- **Styling** — Tailwind CSS
+- **AI Vision** — NVIDIA Nemotron Nano 12B v2 VL
+- **AI Synthesis** — NVIDIA Nemotron Super 120B
+- **Maps** — React-Leaflet + OpenStreetMap tiles
+- **Geocoding** — Nominatim (free, no key required)
+- **Street View** — Google Street View Static API
 
-## Learn More
+## Setup
 
-To learn more about Next.js, take a look at the following resources:
+1. Clone the repo and install dependencies:
+   ```bash
+   npm install
+   ```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+2. Create `.env.local` in the project root:
+   ```
+   NVIDIA_API_KEY=nvapi-...
+   GOOGLE_MAPS_API_KEY=AIzaSy...
+   ```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+3. Run the dev server:
+   ```bash
+   npm run dev
+   ```
 
-## Deploy on Vercel
+4. Open [http://localhost:3000](http://localhost:3000) and enter any address.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Social Impact
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Over **1.3 billion people** worldwide live with some form of disability — roughly 1 in 6 of the global population. For wheelchair users, inaccessible sidewalks, missing curb cuts, and broken ramps aren't inconveniences; they are barriers to employment, healthcare, education, and daily life.
+
+AccessAudit makes accessibility auditing instant and scalable. What once required a trained inspector and hours of fieldwork can now be done in under a minute for any address on Earth — helping city planners, disability advocates, and businesses identify and prioritize accessibility improvements before people encounter them in the real world.
