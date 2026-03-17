@@ -6,6 +6,8 @@ import { synthesizeReport } from "@/lib/nemotron-super";
 import { AccessibilityFinding } from "@/lib/types";
 import { getGrade } from "@/lib/grade";
 
+export const maxDuration = 60;
+
 export async function POST(request: NextRequest) {
   try {
     const { address } = await request.json();
