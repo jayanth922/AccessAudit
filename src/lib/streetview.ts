@@ -31,24 +31,40 @@ async function fetchOneImage(
     `?location=${pointLat},${pointLng}&source=outdoor&key=${GOOGLE_MAPS_API_KEY}`;
 
   const metaRes = await fetch(metaUrl);
-  const meta = await metaRes.json();
-
-  let panoLat = pointLat;
-  let panoLng = pointLng;
-
-  if (meta.status === "OK" && meta.location) {
-    panoLat = meta.location.lat;
-    panoLng = meta.location.lng;
-  } else if (meta.status !== "OK") {
-    throw new Error(`No Street View panorama near ${label} offset (status: ${meta.status})`);
+  if (!metaRes.ok) {
+    throw new Error(`Metadata request failed for ${label}: HTTP ${metaRes.status}`);
   }
 
-  const heading = calculateHeading(panoLat, panoLng, buildingLat, buildingLng);
-  const imageUrl = buildStreetViewUrl(panoLat, panoLng, heading);
+  let meta: { status: string; location?: { lat: number; lng: number } };
+  try {
+    meta = await metaRes.json();
+  } catch {
+    throw new Error(`Metadata response was not valid JSON for ${label}`);
+  }
 
+  console.log(`Street View metadata for ${label}:`, meta.status, meta.location ?? "(no location)");
+
+  if (meta.status !== "OK") {
+    throw new Error(`No Street View panorama near ${label} (status: ${meta.status})`);
+  }
+
+  const panoLat = meta.location!.lat;
+  const panoLng = meta.location!.lng;
+
+  const heading = calculateHeading(panoLat, panoLng, buildingLat, buildingLng);
+  console.log(`Fetching Street View from offset: ${label} at ${panoLat}, ${panoLng} heading: ${heading.toFixed(1)}`);
+
+  const imageUrl = buildStreetViewUrl(panoLat, panoLng, heading);
   const res = await fetch(imageUrl);
+
   if (!res.ok) {
-    throw new Error(`Street View fetch failed for ${label}: ${res.status}`);
+    throw new Error(`Street View image fetch failed for ${label}: HTTP ${res.status}`);
+  }
+
+  const contentType = res.headers.get("content-type") ?? "";
+  if (!contentType.startsWith("image/")) {
+    const text = await res.text();
+    throw new Error(`Street View returned non-image for ${label}: ${text.slice(0, 100)}`);
   }
 
   const arrayBuffer = await res.arrayBuffer();
@@ -60,10 +76,10 @@ async function fetchOneImage(
 export async function fetchStreetViewImages(lat: number, lng: number): Promise<StreetViewImage[]> {
   const cosLat = Math.cos(lat * Math.PI / 180);
   const offsets = [
-    { latOff:  OFFSET_METERS / 111320,              lngOff: 0,                                       label: "North approach" },
-    { latOff:  0,                                   lngOff: OFFSET_METERS / (111320 * cosLat),       label: "East approach"  },
-    { latOff: -OFFSET_METERS / 111320,              lngOff: 0,                                       label: "South approach" },
-    { latOff:  0,                                   lngOff: -OFFSET_METERS / (111320 * cosLat),      label: "West approach"  },
+    { latOff:  OFFSET_METERS / 111320,         lngOff: 0,                                  label: "North approach" },
+    { latOff:  0,                              lngOff: OFFSET_METERS / (111320 * cosLat),  label: "East approach"  },
+    { latOff: -OFFSET_METERS / 111320,         lngOff: 0,                                  label: "South approach" },
+    { latOff:  0,                              lngOff: -OFFSET_METERS / (111320 * cosLat), label: "West approach"  },
   ];
 
   const results = await Promise.allSettled(
@@ -72,8 +88,10 @@ export async function fetchStreetViewImages(lat: number, lng: number): Promise<S
     )
   );
 
-  results.forEach((r) => {
-    if (r.status === "rejected") console.warn("Street View offset failed:", r.reason);
+  results.forEach((r, i) => {
+    if (r.status === "rejected") {
+      console.warn(`Street View offset [${offsets[i].label}] skipped:`, (r.reason as Error).message);
+    }
   });
 
   const images = results

@@ -7,6 +7,8 @@ interface VLAnalysisResult {
   findings: Omit<AccessibilityFinding, "direction">[];
 }
 
+const EMPTY_RESULT: VLAnalysisResult = { findings: [] };
+
 function safeParseVL(raw: string, direction: string): VLAnalysisResult {
   // Strip markdown code fences
   let cleaned = raw.replace(/```json\s*/g, "").replace(/```\s*/g, "").trim();
@@ -31,10 +33,9 @@ function safeParseVL(raw: string, direction: string): VLAnalysisResult {
     }
 
     const candidate = end === -1
-      ? cleaned.slice(start) + "]}"        // truncated — close the findings array
+      ? cleaned.slice(start) + "]}"
       : cleaned.slice(start, end);
 
-    // Fix trailing commas before ] or }
     const fixed = candidate.replace(/,\s*([\]}])/g, "$1");
 
     try {
@@ -43,7 +44,6 @@ function safeParseVL(raw: string, direction: string): VLAnalysisResult {
     } catch {}
   }
 
-  // Final fallback: wrap raw text as a single finding
   console.error(`VL JSON parse failed for ${direction}, using text fallback. Raw:`, raw.slice(0, 300));
   return {
     findings: [
@@ -80,7 +80,6 @@ export async function analyzeAccessibility(
             type: "text",
             text: `Analyze this image of the building as seen from the ${direction}. Focus on the building entrance, doorways, ramps, and pathways visible from this angle. Evaluate for wheelchair accessibility:
 
-Evaluate and report on ALL of the following you can see:
 - Entrance accessibility (steps, ramps, door width, automatic doors)
 - Pathway/sidewalk condition (width, surface, obstacles, slope)
 - Curb cuts and crosswalks
@@ -116,22 +115,37 @@ Respond in JSON format:
     temperature: 0.2,
   };
 
-  const res = await fetch(`${NVIDIA_BASE_URL}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${NVIDIA_API_KEY}`,
-    },
-    body: JSON.stringify(body),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${NVIDIA_BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${NVIDIA_API_KEY}`,
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    console.error(`Nemotron VL network error for ${direction}:`, err);
+    return EMPTY_RESULT;
+  }
 
   if (!res.ok) {
     const errText = await res.text();
-    throw new Error(`Vision API error (${res.status}): ${errText.slice(0, 200)}`);
+    console.error(`Nemotron VL error for ${direction}:`, res.status, errText.slice(0, 300));
+    return EMPTY_RESULT;
   }
 
-  const data = await res.json();
+  let data: { choices?: { message?: { content?: string } }[] };
+  try {
+    data = await res.json();
+  } catch (err) {
+    console.error(`Nemotron VL JSON parse error for ${direction}:`, err);
+    return EMPTY_RESULT;
+  }
+
   const content: string = data.choices?.[0]?.message?.content ?? "";
+  console.log(`Nemotron VL raw response for ${direction}:`, content.slice(0, 200));
 
   return safeParseVL(content, direction);
 }

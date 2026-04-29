@@ -104,10 +104,17 @@ Score scale: 90-100=A, 75-89=B, 60-74=C, 40-59=D, 0-39=F.
 
   if (!res.ok) {
     const errText = await res.text();
-    throw new Error(`Synthesis API error (${res.status}): ${errText.slice(0, 200)}`);
+    console.error(`Nemotron Super error: ${res.status}`, errText.slice(0, 300));
+    return FALLBACK;
   }
 
-  const data = await res.json();
+  let data: { choices?: { message?: { content?: string } }[] };
+  try {
+    data = await res.json();
+  } catch (err) {
+    console.error("Nemotron Super JSON parse error:", err);
+    return FALLBACK;
+  }
   const content: string = data.choices?.[0]?.message?.content ?? "";
 
   console.log("Nemotron Super raw response:", content.slice(0, 500));

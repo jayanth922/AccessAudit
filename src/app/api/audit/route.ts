@@ -10,7 +10,14 @@ export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   try {
-    const { address } = await request.json();
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON in request body." }, { status: 400 });
+    }
+
+    const { address } = body as { address?: string };
 
     console.log("=== AUDIT REQUEST ===");
     console.log("Address:", address);
@@ -27,43 +34,61 @@ export async function POST(request: NextRequest) {
     }
 
     // Step 1: Geocode
-    const location = await geocode(address.trim());
+    console.log("Step 1: Geocoding...");
+    let location;
+    try {
+      location = await geocode(address.trim());
+    } catch (err) {
+      console.error("Geocode error:", err);
+      return NextResponse.json({ error: `Geocoding failed: ${(err as Error).message}` }, { status: 500 });
+    }
     if (!location) {
       return NextResponse.json({ error: "Location not found. Try a more specific address." }, { status: 404 });
     }
+    console.log("Step 1 done: location =", location.displayName, location.lat, location.lng);
 
-    // Step 2: Fetch Street View images (parallel)
+    // Step 2: Fetch Street View images
+    console.log("Step 2: Fetching Street View images...");
     let images;
     try {
       images = await fetchStreetViewImages(location.lat, location.lng);
     } catch (err) {
-      return NextResponse.json(
-        { error: (err as Error).message },
-        { status: 404 }
-      );
+      console.error("Street View error:", err);
+      return NextResponse.json({ error: (err as Error).message }, { status: 404 });
     }
-
     if (images.length === 0) {
       return NextResponse.json({ error: "No Street View imagery available for this location." }, { status: 404 });
     }
+    console.log(`Step 2 done: ${images.length} images fetched:`, images.map((i) => i.direction));
 
-    // Step 3: Analyze each image with Nemotron VL (parallel)
+    // Step 3: Analyze each image with Nemotron VL (parallel, non-throwing)
+    console.log("Step 3: Running Nemotron VL analysis...");
     const analysisResults = await Promise.all(
       images.map((img) => analyzeAccessibility(img.base64, img.direction))
     );
+    console.log("Step 3 done: findings per image:", analysisResults.map((r) => r.findings.length));
 
-    // Step 4: Combine findings, attach direction, synthesize
+    // Step 4: Combine findings
     const allFindings: AccessibilityFinding[] = analysisResults.flatMap((result, i) =>
       result.findings.map((f) => ({ ...f, direction: images[i].direction }))
     );
+    console.log(`Step 4: ${allFindings.length} total findings combined`);
 
     // Brief pause to avoid rate-limiting between VL and Super calls
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    let report = await synthesizeReport(location.displayName, allFindings);
+    // Step 5: Synthesize report
+    console.log("Step 5: Synthesizing report with Nemotron Super...");
+    let report;
+    try {
+      report = await synthesizeReport(location.displayName, allFindings);
+    } catch (err) {
+      console.error("Synthesis error:", err);
+      report = { findings: [] as AccessibilityFinding[], overallScore: 0, grade: "F", summary: "", recommendations: [] };
+    }
+    console.log("Step 5 done: score =", report.overallScore, "findings =", report.findings.length);
 
-    // If synthesis failed but raw VL findings exist, build a fallback report
-    // so the demo never shows empty results as long as the vision step worked.
+    // Fallback report if synthesis returned nothing
     if (report.findings.length === 0 && allFindings.length > 0) {
       console.warn("Synthesis returned no findings — falling back to raw VL findings");
       const criticalCount = allFindings.filter((f) => f.severity === "critical").length;
@@ -89,11 +114,11 @@ export async function POST(request: NextRequest) {
       };
     }
 
-    // Step 5: Return full report (include base64 for client-side image display)
+    console.log("=== AUDIT COMPLETE ===");
     return NextResponse.json({
       location,
       overallScore: report.overallScore,
-      grade: getGrade(report.overallScore), // derived from score, not trusted from model
+      grade: getGrade(report.overallScore),
       summary: report.summary,
       findings: report.findings,
       recommendations: report.recommendations,
@@ -104,7 +129,7 @@ export async function POST(request: NextRequest) {
       })),
     });
   } catch (err) {
-    console.error("Audit route error:", err);
+    console.error("Unhandled audit route error:", err);
     return NextResponse.json(
       { error: `Unexpected error: ${(err as Error).message}` },
       { status: 500 }
