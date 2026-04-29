@@ -71,8 +71,9 @@ export async function POST(request: NextRequest) {
       const minorCount    = allFindings.filter((f) => f.severity === "minor").length;
       const positiveCount = allFindings.filter((f) => f.severity === "positive").length;
 
+      const positiveBonus = Math.min(positiveCount * 5, 30);
       const score = Math.max(0, Math.min(100,
-        100 - (criticalCount * 25) - (majorCount * 15) - (minorCount * 5) + (positiveCount * 10)
+        100 - (criticalCount * 25) - (majorCount * 15) - (minorCount * 5) + positiveBonus
       ));
 
       report = {

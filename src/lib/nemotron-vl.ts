@@ -67,7 +67,7 @@ export async function analyzeAccessibility(
       {
         role: "system",
         content:
-          "/no_think You are a wheelchair accessibility auditor. Analyze the street-level image and identify ALL accessibility features and barriers visible. Be specific and detailed.",
+          "/no_think You are a wheelchair accessibility auditor. Analyze the street-level image and identify ALL accessibility features and barriers visible. Be specific and detailed. Only mark a finding as 'positive' if you can clearly see a specific accessibility feature present (like a ramp, curb cut, or automatic door). If a feature is simply absent or you cannot assess it, classify it as 'minor' with a note that it could not be assessed from this angle. Never mark the absence of a barrier as a positive finding.",
       },
       {
         role: "user",
@@ -78,7 +78,7 @@ export async function analyzeAccessibility(
           },
           {
             type: "text",
-            text: `Analyze this street-level image facing ${direction} for wheelchair accessibility.
+            text: `Analyze this image of the building as seen from the ${direction}. Focus on the building entrance, doorways, ramps, and pathways visible from this angle. Evaluate for wheelchair accessibility:
 
 Evaluate and report on ALL of the following you can see:
 - Entrance accessibility (steps, ramps, door width, automatic doors)
