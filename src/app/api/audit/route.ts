@@ -77,11 +77,18 @@ export async function POST(request: NextRequest) {
     // Brief pause to avoid rate-limiting between VL and Super calls
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
+    // Cap findings sent to synthesis to avoid truncated responses (prioritise by severity)
+    const SEVERITY_RANK: Record<string, number> = { critical: 0, major: 1, minor: 2, positive: 3 };
+    const findingsForSynthesis = [...allFindings]
+      .sort((a, b) => (SEVERITY_RANK[a.severity] ?? 9) - (SEVERITY_RANK[b.severity] ?? 9))
+      .slice(0, 15);
+    console.log(`Step 5 input: ${findingsForSynthesis.length} findings (capped from ${allFindings.length})`);
+
     // Step 5: Synthesize report
     console.log("Step 5: Synthesizing report with Nemotron Super...");
     let report;
     try {
-      report = await synthesizeReport(location.displayName, allFindings);
+      report = await synthesizeReport(location.displayName, findingsForSynthesis);
     } catch (err) {
       console.error("Synthesis error:", err);
       report = { findings: [] as AccessibilityFinding[], overallScore: 0, grade: "F", summary: "", recommendations: [] };
