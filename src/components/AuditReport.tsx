@@ -8,8 +8,15 @@ import FindingCard from "./FindingCard";
 
 const MapView = dynamic(() => import("./MapView"), { ssr: false });
 
-const DIRECTION_LABELS = ["North", "East", "South", "West"];
-const DIRECTION_SHORT  = ["N",     "E",    "S",    "W"   ];
+function dirAbbrev(direction: string): string {
+  const abbrevs: Record<string, string> = {
+    North: "N", Northeast: "NE", East: "E", Southeast: "SE",
+    South: "S", Southwest: "SW", West: "W", Northwest: "NW",
+    Front: "F", Rear: "R",
+  };
+  const first = direction.split(" ")[0];
+  return abbrevs[first] ?? first.slice(0, 2).toUpperCase();
+}
 
 const SEVERITY_ORDER = ["critical", "major", "minor", "positive"] as const;
 
@@ -119,7 +126,7 @@ export default function AuditReport({ report }: Props) {
               {/* Direction label */}
               <div className="absolute top-2 left-2 z-10 flex items-center gap-1.5 bg-black/55 backdrop-blur-sm px-2.5 py-1 rounded-full">
                 <span className="text-xs font-bold text-white">
-                  {DIRECTION_SHORT[idx]} · {DIRECTION_LABELS[idx]}
+                  {img.direction}
                 </span>
               </div>
               {/* Hover overlay */}
@@ -130,7 +137,7 @@ export default function AuditReport({ report }: Props) {
               </div>
               <img
                 src={`data:image/jpeg;base64,${img.base64}`}
-                alt={`Street view facing ${img.direction}`}
+                alt={`Street view: ${img.direction}`}
                 className="w-full h-full object-cover"
               />
             </button>
@@ -211,7 +218,7 @@ export default function AuditReport({ report }: Props) {
             {/* Header */}
             <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between p-4 bg-gradient-to-b from-black/70 to-transparent">
               <span className="text-sm font-bold text-white">
-                {DIRECTION_LABELS[lightboxIdx]} View
+                {report.streetViewImages[lightboxIdx].direction}
               </span>
               <button
                 onClick={() => setLightboxIdx(null)}
@@ -223,12 +230,12 @@ export default function AuditReport({ report }: Props) {
             </div>
             <img
               src={`data:image/jpeg;base64,${report.streetViewImages[lightboxIdx].base64}`}
-              alt={`Street view facing ${DIRECTION_LABELS[lightboxIdx]}`}
+              alt={`Street view: ${report.streetViewImages[lightboxIdx].direction}`}
               className="w-full h-auto"
             />
             {/* Thumbnail nav */}
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
-              {report.streetViewImages.map((_, i) => (
+              {report.streetViewImages.map((img, i) => (
                 <button
                   key={i}
                   onClick={() => setLightboxIdx(i)}
@@ -238,7 +245,7 @@ export default function AuditReport({ report }: Props) {
                       : "bg-black/50 text-white/70 hover:bg-white/20"
                   }`}
                 >
-                  {DIRECTION_SHORT[i]}
+                  {dirAbbrev(img.direction)}
                 </button>
               ))}
             </div>
